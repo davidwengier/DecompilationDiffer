@@ -1,0 +1,111 @@
+﻿@page "/"
+@inject NavigationManager navigationManager
+@using System.Threading
+
+<div class="banner">
+    <span class="title">Decompilation Differ<span class="version"> - @ThisAssembly.AssemblyInformationalVersion</span></span>
+    <span class="about">
+        by <a target="_blank" href="https://twitter.com/davidwengier">@@davidwengier</a>
+        - <a target="_blank" href="https://github.com/davidwengier/DecompilationDiffer">GitHub</a>
+    </span>
+</div>
+
+<div class="parent">
+    <div class="code-header"><span class="header">Base</span></div>
+    <div class="code"><MonacoEditor @ref="codeEditor" Id="code-editor" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="generator-header"><span class="header">Version 1</span></div>
+    <div class="generator"><MonacoEditor @ref="generator" Id="generator" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="program-output-header"><span class="header">Base Decompilation</span></div>
+    <div class="program-output"><MonacoEditor @ref="programOutput" Id="program-output" ConstructionOptions="EditorConstructionOptions" /></div>
+    <div class="generator-output-header"><span class="header">Version 1 Decompilation</span>
+        <div class="refresh">
+            <span>
+                <input type="checkbox" @bind="_autoRefresh" /> Auto
+            </span>
+            <div class="btn btn-primary" @onclick="Refresh">
+                <span>Refresh</span>
+            </div>
+        </div>
+    </div>
+    <div class="geneator-output"><MonacoEditor @ref="generatorOutput" Id="generator-output" ConstructionOptions="EditorConstructionOptions" /></div>
+</div>
+
+@code {
+    private MonacoEditor codeEditor;
+    private MonacoEditor generator;
+    private MonacoEditor programOutput;
+    private MonacoEditor generatorOutput;
+    private bool _autoRefresh = false;
+
+    private StandaloneEditorConstructionOptions EditorConstructionOptions(MonacoEditor editor)
+    {
+        var options = new StandaloneEditorConstructionOptions
+        {
+            AutomaticLayout = true,
+            Language = "csharp",
+            Minimap = new MinimapOptions() { Enabled = false },
+            Folding = false,
+        };
+
+        if (editor == programOutput || editor == generatorOutput)
+        {
+            options.ReadOnly = true;
+        }
+
+        return options;
+    }
+
+    private CancellationTokenSource _typingCancellationSource = new CancellationTokenSource();
+
+    private void Refresh()
+    {
+        _ = Update(default);
+    }
+
+    private void OnKeyUp(KeyboardEvent keyboardEvent)
+    {
+        // ignore arrow keys
+        if (keyboardEvent.KeyCode == KeyCode.LeftArrow ||
+            keyboardEvent.KeyCode == KeyCode.RightArrow ||
+            keyboardEvent.KeyCode == KeyCode.UpArrow ||
+            keyboardEvent.KeyCode == KeyCode.DownArrow ||
+            keyboardEvent.KeyCode == KeyCode.PageUp ||
+            keyboardEvent.KeyCode == KeyCode.PageDown)
+        {
+            return;
+        }
+
+        if (!_autoRefresh)
+        {
+            return;
+        }
+
+        _typingCancellationSource.Cancel();
+        _typingCancellationSource = new CancellationTokenSource();
+        _ = Update(_typingCancellationSource.Token);
+    }
+
+    private async Task Update(CancellationToken cancellationToken)
+    {
+        await Task.Delay(500, cancellationToken);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var runner = new Runner(await codeEditor.GetValue(), await generator.GetValue());
+
+        await runner.Run(navigationManager.BaseUri);
+
+        if (runner.ErrorText?.Length != 0)
+        {
+            await programOutput.SetValue(runner.ErrorText);
+        }
+        else
+        {
+            await programOutput.SetValue(runner.BaseOutput);
+        }
+        await generatorOutput.SetValue(runner.Version1Output);
+    }
+}
