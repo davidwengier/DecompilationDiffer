@@ -15,9 +15,8 @@
     <div class="code"><MonacoEditor @ref="codeEditor" Id="code-editor" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
     <div class="generator-header"><span class="header">Version 1</span></div>
     <div class="generator"><MonacoEditor @ref="generator" Id="generator" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
-    <div class="program-output-header"><span class="header">Base Decompilation</span></div>
-    <div class="program-output"><MonacoEditor @ref="programOutput" Id="program-output" ConstructionOptions="EditorConstructionOptions" /></div>
-    <div class="generator-output-header"><span class="header">Version 1 Decompilation</span>
+    <div class="generator-output-header">
+        <span class="header">Decompilation Diff</span>
         <div class="refresh">
             <span>
                 <input type="checkbox" @bind="_autoRefresh" /> Auto
@@ -27,15 +26,32 @@
             </div>
         </div>
     </div>
-    <div class="geneator-output"><MonacoEditor @ref="generatorOutput" Id="generator-output" ConstructionOptions="EditorConstructionOptions" /></div>
+    <div class="geneator-output"><MonacoDiffEditor @ref="generatorOutput" Id="generator-output" ConstructionOptions="DiffEditorConstructionOptions" /></div>
 </div>
 
 @code {
     private MonacoEditor codeEditor;
     private MonacoEditor generator;
     private MonacoEditor programOutput;
-    private MonacoEditor generatorOutput;
+    private MonacoDiffEditor generatorOutput;
     private bool _autoRefresh = false;
+
+    private DiffEditorConstructionOptions DiffEditorConstructionOptions(MonacoDiffEditor editor)
+    {
+        var options = new DiffEditorConstructionOptions
+        {
+            AutomaticLayout = true,
+            Minimap = new MinimapOptions() { Enabled = false },
+            Folding = false,
+            RenderSideBySide = false,
+            IgnoreTrimWhitespace = true,
+            OriginalEditable = false,
+            ReadOnly = true,
+            LineNumbers = ""
+        };
+
+        return options;
+    }
 
     private StandaloneEditorConstructionOptions EditorConstructionOptions(MonacoEditor editor)
     {
@@ -47,7 +63,7 @@
             Folding = false,
         };
 
-        if (editor == programOutput || editor == generatorOutput)
+        if (editor == programOutput)
         {
             options.ReadOnly = true;
         }
@@ -98,14 +114,21 @@
 
         await runner.Run(navigationManager.BaseUri);
 
+        var baseOutput = runner.BaseOutput;
+        var version1Output = runner.Version1Output;
         if (runner.ErrorText?.Length != 0)
         {
-            await programOutput.SetValue(runner.ErrorText);
+            baseOutput = version1Output = runner.ErrorText;
         }
-        else
+        
+        
+        var originalModel = await MonacoEditorBase.CreateModel(baseOutput, "csharp");
+        var modifiedModel = await MonacoEditorBase.CreateModel(version1Output, "csharp");
+
+        await generatorOutput.SetModel(new DiffEditorModel
         {
-            await programOutput.SetValue(runner.BaseOutput);
-        }
-        await generatorOutput.SetValue(runner.Version1Output);
+            Original = originalModel,
+            Modified = modifiedModel
+        });
     }
 }
