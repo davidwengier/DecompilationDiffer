@@ -18,7 +18,7 @@ a, .btn-link {
     border-color: #1861ac;
 }
 
-app {
+#app {
     padding-left: 20px;
     padding-top: 20px;
     display: flex;

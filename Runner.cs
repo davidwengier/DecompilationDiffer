@@ -181,6 +181,7 @@ namespace DecompilationDiffer
             foreach (Assembly? reference in refs.Where(x => !x.IsDynamic && !string.IsNullOrWhiteSpace(x.Location)))
             {
                 Stream? stream = await client.GetStreamAsync($"_framework/_bin/{reference.Location}");
+                if (stream is null) continue;
                 references.Add((reference.FullName, stream));
 
             }
