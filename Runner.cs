@@ -1,17 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
-using System.Diagnostics;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 #nullable enable
 
@@ -19,7 +16,7 @@ namespace DecompilationDiffer
 {
     internal class Runner
     {
-        private DecompilerSettings _decompilerSettings = new DecompilerSettings(ICSharpCode.Decompiler.CSharp.LanguageVersion.CSharp1)
+        private readonly DecompilerSettings _decompilerSettings = new DecompilerSettings(ICSharpCode.Decompiler.CSharp.LanguageVersion.CSharp1)
         {
             ArrayInitializers = false,
             AutomaticEvents = false,
@@ -42,15 +39,18 @@ namespace DecompilationDiffer
         private static AssemblyResolver? s_assemblyResolver;
         private readonly string _baseCode;
         private readonly string _version1;
+        private readonly string _version2;
 
         public string ErrorText { get; private set; } = "";
         public string Version1Output { get; private set; } = "";
+        public string Version2Output { get; private set; } = "";
         public string BaseOutput { get; private set; } = "";
 
-        public Runner(string baseCode, string version1)
+        public Runner(string baseCode, string version1, string version2)
         {
             _baseCode = baseCode;
             _version1 = version1;
+            _version2 = version2;
         }
 
         internal async Task Run(string baseUri)
@@ -65,6 +65,7 @@ namespace DecompilationDiffer
 
                 this.BaseOutput = "";
                 this.Version1Output = "";
+                this.Version2Output = "";
                 this.ErrorText = "";
 
                 if (string.IsNullOrWhiteSpace(_baseCode) || string.IsNullOrWhiteSpace(_version1))
@@ -80,6 +81,12 @@ namespace DecompilationDiffer
                     return;
                 }
                 this.Version1Output = CompileAndDecompile(_version1, out errors);
+                if (errors is not null)
+                {
+                    this.ErrorText = errors;
+                    return;
+                }
+                this.Version2Output = CompileAndDecompile(_version2, out errors);
                 if (errors is not null)
                 {
                     this.ErrorText = errors;

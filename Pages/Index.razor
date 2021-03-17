@@ -13,9 +13,11 @@
 <div class="parent">
     <div class="code-header"><span class="header">Base</span></div>
     <div class="code"><MonacoEditor @ref="codeEditor" Id="code-editor" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
-    <div class="generator-header"><span class="header">Version 1</span></div>
-    <div class="generator"><MonacoEditor @ref="generator" Id="generator" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
-    <div class="generator-output-header">
+    <div class="v1-header"><span class="header">Version 1</span></div>
+    <div class="v1"><MonacoEditor @ref="v1" Id="v1" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="v2-header"><span class="header">Version 2</span></div>
+    <div class="v2"><MonacoEditor @ref="v2" Id="v2" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="diff-header">
         <span class="header">Decompilation Diff</span>
         <div class="refresh">
             <span>
@@ -26,14 +28,16 @@
             </div>
         </div>
     </div>
-    <div class="geneator-output"><MonacoDiffEditor @ref="generatorOutput" Id="generator-output" ConstructionOptions="DiffEditorConstructionOptions" /></div>
+    <div class="v1Diff"><MonacoDiffEditor @ref="v1Diff" Id="v1diff" ConstructionOptions="DiffEditorConstructionOptions" /></div>
+    <div class="v2Diff"><MonacoDiffEditor @ref="v2Diff" Id="v2diff" ConstructionOptions="DiffEditorConstructionOptions" /></div>
 </div>
 
 @code {
     private MonacoEditor codeEditor;
-    private MonacoEditor generator;
-    private MonacoEditor programOutput;
-    private MonacoDiffEditor generatorOutput;
+    private MonacoEditor v1;
+    private MonacoEditor v2;
+    private MonacoDiffEditor v1Diff;
+    private MonacoDiffEditor v2Diff;
     private bool _autoRefresh = false;
 
     private DiffEditorConstructionOptions DiffEditorConstructionOptions(MonacoDiffEditor editor)
@@ -62,11 +66,6 @@
             Minimap = new MinimapOptions() { Enabled = false },
             Folding = false,
         };
-
-        if (editor == programOutput)
-        {
-            options.ReadOnly = true;
-        }
 
         return options;
     }
@@ -110,22 +109,29 @@
             return;
         }
 
-        var runner = new Runner(await codeEditor.GetValue(), await generator.GetValue());
+        var runner = new Runner(await codeEditor.GetValue(), await v1.GetValue(), await v2.GetValue());
 
         await runner.Run(navigationManager.BaseUri);
 
         var baseOutput = runner.BaseOutput;
         var version1Output = runner.Version1Output;
+        var version2Output = runner.Version2Output;
         if (runner.ErrorText?.Length != 0)
         {
-            baseOutput = version1Output = runner.ErrorText;
+            baseOutput = version1Output = version2Output = runner.ErrorText;
         }
-        
         
         var originalModel = await MonacoEditorBase.CreateModel(baseOutput, "csharp");
         var modifiedModel = await MonacoEditorBase.CreateModel(version1Output, "csharp");
 
-        await generatorOutput.SetModel(new DiffEditorModel
+        await v1Diff.SetModel(new DiffEditorModel
+        {
+            Original = originalModel,
+            Modified = modifiedModel
+        });
+
+        modifiedModel = await MonacoEditorBase.CreateModel(version2Output, "csharp");
+        await v2Diff.SetModel(new DiffEditorModel
         {
             Original = originalModel,
             Modified = modifiedModel
