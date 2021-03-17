@@ -38,7 +38,7 @@
     private MonacoEditor v2;
     private MonacoDiffEditor v1Diff;
     private MonacoDiffEditor v2Diff;
-    private bool _autoRefresh = false;
+    private bool _autoRefresh = true;
 
     private DiffEditorConstructionOptions DiffEditorConstructionOptions(MonacoDiffEditor editor)
     {
@@ -66,6 +66,22 @@
             Minimap = new MinimapOptions() { Enabled = false },
             Folding = false,
         };
+
+        const string isExternalInit = "\n\n\n\n\n// To allow init accessors to be used:\nnamespace System.Runtime.CompilerServices { public class IsExternalInit{} }";
+        if (editor == codeEditor)
+        {
+            options.Value = "record R(int X);" + isExternalInit;
+        }
+        else if (editor == v1)
+        {
+            options.Value = "record R(int X)\n{\n    public int X { get; init; }\n}" + isExternalInit;
+        }
+        else if (editor == v2)
+        {
+            options.Value = "record R(int X)\n{\n    public int X { get; set; } = X;\n}" + isExternalInit;
+
+            _ = Update(default);
+        }
 
         return options;
     }
