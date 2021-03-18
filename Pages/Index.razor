@@ -28,8 +28,8 @@
             </div>
         </div>
     </div>
-    <div class="v1Diff"><MonacoDiffEditor @ref="v1Diff" Id="v1diff" ConstructionOptions="DiffEditorConstructionOptions" /></div>
-    <div class="v2Diff"><MonacoDiffEditor @ref="v2Diff" Id="v2diff" ConstructionOptions="DiffEditorConstructionOptions" /></div>
+    <div class="v1Diff"><MonacoDiffEditor @ref="v1Diff" Id="v1diff" ConstructionOptions="DiffEditorConstructionOptions" OnDidScrollChangeModified="ScrollV1" /></div>
+    <div class="v2Diff"><MonacoDiffEditor @ref="v2Diff" Id="v2diff" ConstructionOptions="DiffEditorConstructionOptions" OnDidScrollChangeModified="ScrollV2" /></div>
 </div>
 
 @code {
@@ -39,6 +39,7 @@
     private MonacoDiffEditor v1Diff;
     private MonacoDiffEditor v2Diff;
     private bool _autoRefresh = true;
+    private bool _syncScroll = true;
 
     private DiffEditorConstructionOptions DiffEditorConstructionOptions(MonacoDiffEditor editor)
     {
@@ -51,7 +52,8 @@
             IgnoreTrimWhitespace = true,
             OriginalEditable = false,
             ReadOnly = true,
-            LineNumbers = ""
+            LineNumbers = "",
+            Scrollbar = new EditorScrollbarOptions() { Vertical = "hidden", VerticalScrollbarSize = 0 }
         };
 
         return options;
@@ -67,18 +69,17 @@
             Folding = false,
         };
 
-        const string isExternalInit = "\n\n\n\n\n// To allow init accessors to be used:\nnamespace System.Runtime.CompilerServices { public class IsExternalInit{} }";
         if (editor == codeEditor)
         {
-            options.Value = "record R(int X);" + isExternalInit;
+            options.Value = "record R(int X);";
         }
         else if (editor == v1)
         {
-            options.Value = "record R(int X)\n{\n    public int X { get; init; }\n}" + isExternalInit;
+            options.Value = "record R(int X)\n{\n    public int X { get; init; }\n}";
         }
         else if (editor == v2)
         {
-            options.Value = "record R(int X)\n{\n    public int X { get; set; } = X;\n}" + isExternalInit;
+            options.Value = "record R(int X)\n{\n    public int X { get; set; } = X;\n}";
 
             _ = Update(default);
         }
@@ -125,6 +126,14 @@
             return;
         }
 
+        var tempModel = await MonacoEditorBase.CreateModel("Compiling and Decompiling...", "txt");
+
+        await v1Diff.SetModel(new DiffEditorModel
+        {
+            Original = tempModel,
+            Modified = tempModel
+        });
+
         var runner = new Runner(await codeEditor.GetValue(), await v1.GetValue(), await v2.GetValue());
 
         await runner.Run(navigationManager.BaseUri);
@@ -132,25 +141,65 @@
         var baseOutput = runner.BaseOutput;
         var version1Output = runner.Version1Output;
         var version2Output = runner.Version2Output;
-        if (runner.ErrorText?.Length != 0)
+
+        if (baseOutput.StartsWith("Error"))
         {
-            baseOutput = version1Output = version2Output = runner.ErrorText;
+            var originalModel = await MonacoEditorBase.CreateModel(baseOutput, "txt");
+            var modifiedModel = await MonacoEditorBase.CreateModel(baseOutput, "txt");
+
+            await v1Diff.SetModel(new DiffEditorModel
+            {
+                Original = originalModel,
+                Modified = modifiedModel
+            });
+            originalModel = await MonacoEditorBase.CreateModel("", "txt");
+            modifiedModel = await MonacoEditorBase.CreateModel("", "txt");
+
+            await v2Diff.SetModel(new DiffEditorModel
+            {
+                Original = originalModel,
+                Modified = modifiedModel
+            });
+        }
+        else
+        {
+            var lang = version1Output.StartsWith("Error") ? "txt" : "csharp";
+            var originalModel = await MonacoEditorBase.CreateModel(version1Output.StartsWith("Error") ? version1Output : baseOutput, lang);
+            var modifiedModel = await MonacoEditorBase.CreateModel(version1Output, lang);
+
+            await v1Diff.SetModel(new DiffEditorModel
+            {
+                Original = originalModel,
+                Modified = modifiedModel
+            });
+
+            lang = version2Output.StartsWith("Error") ? "txt" : "csharp";
+            originalModel = await MonacoEditorBase.CreateModel(version2Output.StartsWith("Error") ? version2Output : baseOutput, lang);
+            modifiedModel = await MonacoEditorBase.CreateModel(version2Output, lang);
+
+            await v2Diff.SetModel(new DiffEditorModel
+            {
+                Original = originalModel,
+                Modified = modifiedModel
+            });
         }
         
-        var originalModel = await MonacoEditorBase.CreateModel(baseOutput, "csharp");
-        var modifiedModel = await MonacoEditorBase.CreateModel(version1Output, "csharp");
+        _syncScroll = !baseOutput.StartsWith("Error") && !version1Output.StartsWith("Error") && !version2Output.StartsWith("Error");
+    }
 
-        await v1Diff.SetModel(new DiffEditorModel
+    private void ScrollV1(ScrollEvent eventArgs)
+    {
+        if (_syncScroll)
         {
-            Original = originalModel,
-            Modified = modifiedModel
-        });
+            v2Diff.ModifiedEditor.SetScrollTop(Convert.ToInt32(eventArgs.ScrollTop));
+        }
+    }
 
-        modifiedModel = await MonacoEditorBase.CreateModel(version2Output, "csharp");
-        await v2Diff.SetModel(new DiffEditorModel
+    private void ScrollV2(ScrollEvent eventArgs)
+    {
+        if (_syncScroll)
         {
-            Original = originalModel,
-            Modified = modifiedModel
-        });
+            v1Diff.ModifiedEditor.SetScrollTop(Convert.ToInt32(eventArgs.ScrollTop));
+        }
     }
 }
