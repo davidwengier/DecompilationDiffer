@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -41,10 +42,9 @@ namespace DecompilationDiffer
         private readonly string _version1;
         private readonly string _version2;
 
-        public string ErrorText { get; private set; } = "";
+        public string BaseOutput { get; private set; } = "";
         public string Version1Output { get; private set; } = "";
         public string Version2Output { get; private set; } = "";
-        public string BaseOutput { get; private set; } = "";
 
         public Runner(string baseCode, string version1, string version2)
         {
@@ -66,62 +66,39 @@ namespace DecompilationDiffer
                 this.BaseOutput = "";
                 this.Version1Output = "";
                 this.Version2Output = "";
-                this.ErrorText = "";
 
-                if (string.IsNullOrWhiteSpace(_baseCode) || string.IsNullOrWhiteSpace(_version1))
-                {
-                    this.ErrorText = "Need more input!";
-                    return;
-                }
-
-                this.BaseOutput = CompileAndDecompile(_baseCode, out string errors);
-                if (errors is not null)
-                {
-                    this.ErrorText = errors;
-                    return;
-                }
-                this.Version1Output = CompileAndDecompile(_version1, out errors);
-                if (errors is not null)
-                {
-                    this.ErrorText = errors;
-                    return;
-                }
-                this.Version2Output = CompileAndDecompile(_version2, out errors);
-                if (errors is not null)
-                {
-                    this.ErrorText = errors;
-                    return;
-                }
+                this.BaseOutput = CompileAndDecompile(_baseCode, "base");
+                this.Version1Output = CompileAndDecompile(_version1, "version 1");
+                this.Version2Output = CompileAndDecompile(_version2, "version 2");
             }
             catch (Exception ex)
             {
-                this.ErrorText = "Error doing something: " + ex.ToString();
+                this.BaseOutput = "Error doing something:\n\n" + ex.ToString();
             }
         }
 
-        private string? CompileAndDecompile(string code, out string? errors)
+        private string CompileAndDecompile(string code, string name)
         {
             SyntaxTree? codeTree = CSharpSyntaxTree.ParseText(code, new CSharpParseOptions(kind: SourceCodeKind.Regular), "Program.cs");
-            var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, s_references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, s_references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, concurrentBuild: false));
 
-            errors = GetErrors("Error(s) compiling program:", codeCompilation.GetDiagnostics());
+            var errors = GetErrors("Error compiling " + name + " code:\n\n", codeCompilation.GetDiagnostics());
             if (errors != null)
             {
-                return null;
+                return errors;
             }
 
-            var assemblyStream = GetAssemblyStream(codeCompilation, "Code", out var rawErrors);
+            var assemblyStream = GetAssemblyStream(codeCompilation, out var rawErrors);
             if (rawErrors is { Length: > 0 } || assemblyStream == null)
             {
-                errors = "Error getting assembly stream: " + rawErrors;
-                return null;
+                return "Error getting assembly stream for " + name + " code: " + rawErrors;
             }
             using var peFile = new PEFile("", assemblyStream);
             var decompiler = new ICSharpCode.Decompiler.CSharp.CSharpDecompiler(peFile, s_assemblyResolver, _decompilerSettings);
             return decompiler.DecompileWholeModuleAsString();
         }
 
-        private Stream? GetAssemblyStream(Compilation generatorCompilation, string name, out string? errors)
+        private Stream? GetAssemblyStream(Compilation generatorCompilation,out string? errors)
         {
             try
             {
@@ -129,7 +106,7 @@ namespace DecompilationDiffer
                 Microsoft.CodeAnalysis.Emit.EmitResult? result = generatorCompilation.Emit(generatorStream);
                 if (!result.Success)
                 {
-                    errors = GetErrors($"Error emitting {name}:", result.Diagnostics, false);
+                    errors = GetErrors($"Error emitting aseembly:", result.Diagnostics, false);
                     return null;
                 }
                 generatorStream.Seek(0, SeekOrigin.Begin);
@@ -178,13 +155,18 @@ namespace DecompilationDiffer
 
             var references = new List<(string, Stream)>();
 
-            foreach (Assembly? reference in refs.Where(x => !x.IsDynamic && !string.IsNullOrWhiteSpace(x.Location)))
+            // CodeBase is obsolete, and it says to use Location, but Location is blank ¯\_(ツ)_/¯
+#pragma warning disable SYSLIB0012 // Type or member is obsolete
+            foreach (Assembly? reference in refs.Where(x => !x.IsDynamic && !string.IsNullOrWhiteSpace(x.CodeBase)))
             {
-                Stream? stream = await client.GetStreamAsync($"_framework/_bin/{reference.Location}");
-                if (stream is null) continue;
+                Stream? stream = await client.GetStreamAsync($"_framework/{Path.GetFileName(reference.CodeBase)}");
+                if (stream is null || reference.FullName is null)
+                {
+                    continue;
+                }
                 references.Add((reference.FullName, stream));
-
             }
+#pragma warning restore SYSLIB0012 // Type or member is obsolete
 
             return references;
         }
