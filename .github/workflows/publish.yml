@@ -20,6 +20,6 @@ jobs:
       uses: crazy-max/ghaction-github-pages@v2.2.0
       with:
         target_branch: gh-pages
-        build_dir: bin/Release/netstandard2.1/publish/wwwroot
+        build_dir: bin/Release/net5.0/publish/wwwroot
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
