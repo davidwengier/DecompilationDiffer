@@ -1,4 +1,4 @@
-﻿@page "/"
+﻿@page "/{*fragment}"
 @inject NavigationManager navigationManager
 @using System.Threading
 
@@ -40,6 +40,12 @@
     private MonacoDiffEditor v2Diff;
     private bool _autoRefresh = true;
     private bool _syncScroll = true;
+    private string _initialBaseCode = "record R(int X);";
+    private string _initialVersion1Code = "record R(int X)\n{\n    public int X { get; init; }\n}";
+    private string _initialVersion2Code = "record R(int X)\n{\n    public int X { get; set; } = X;\n}";
+
+    [ParameterAttribute]
+    public string fragment { get; set; }
 
     private DiffEditorConstructionOptions DiffEditorConstructionOptions(MonacoDiffEditor editor)
     {
@@ -71,15 +77,30 @@
 
         if (editor == codeEditor)
         {
-            options.Value = "record R(int X);";
+            var uri = navigationManager.ToAbsoluteUri(navigationManager.Uri);
+            var slug = uri.Fragment.TrimStart('#');
+            if (!string.IsNullOrWhiteSpace(slug))
+            {
+                var uncompressed = Runner.Uncompress(slug);
+                _initialVersion1Code = "Error reading URL:\n\n" + uncompressed;
+                var bits = uncompressed.Split((char)7);
+                if (bits.Length == 3)
+                {
+                    _initialBaseCode = bits[0];
+                    _initialVersion1Code = bits[1];
+                    _initialVersion2Code = bits[2];
+                }
+            }
+
+            options.Value = _initialBaseCode;
         }
         else if (editor == v1)
         {
-            options.Value = "record R(int X)\n{\n    public int X { get; init; }\n}";
+            options.Value = _initialVersion1Code;
         }
         else if (editor == v2)
         {
-            options.Value = "record R(int X)\n{\n    public int X { get; set; } = X;\n}";
+            options.Value = _initialVersion2Code;
 
             _ = Update(default);
         }
@@ -138,6 +159,8 @@
 
         await runner.Run(navigationManager.BaseUri);
 
+        navigationManager.NavigateTo(navigationManager.BaseUri + "#" + runner.Slug, forceLoad: false);
+
         var baseOutput = runner.BaseOutput;
         var version1Output = runner.Version1Output;
         var version2Output = runner.Version2Output;
@@ -183,7 +206,7 @@
                 Modified = modifiedModel
             });
         }
-        
+
         _syncScroll = !baseOutput.StartsWith("Error") && !version1Output.StartsWith("Error") && !version2Output.StartsWith("Error");
     }
 
