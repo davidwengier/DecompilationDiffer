@@ -81,7 +81,7 @@
             var slug = uri.Fragment.TrimStart('#');
             if (!string.IsNullOrWhiteSpace(slug))
             {
-                var uncompressed = Runner.Uncompress(slug);
+                var uncompressed = Compressor.Uncompress(slug);
                 _initialVersion1Code = "Error reading URL:\n\n" + uncompressed;
                 var bits = uncompressed.Split((char)7);
                 if (bits.Length == 3)
@@ -110,12 +110,12 @@
 
     private CancellationTokenSource _typingCancellationSource = new CancellationTokenSource();
 
-    private void Refresh()
+    private Task Refresh()
     {
-        _ = Update(default);
+        return Update(default);
     }
 
-    private void OnKeyUp(KeyboardEvent keyboardEvent)
+    private async Task OnKeyUp(KeyboardEvent keyboardEvent)
     {
         // ignore arrow keys
         if (keyboardEvent.KeyCode == KeyCode.LeftArrow ||
@@ -128,6 +128,13 @@
             return;
         }
 
+        var baseCode = await codeEditor.GetValue();
+        var version1 = await v1.GetValue();
+        var version2 = await v2.GetValue();
+
+        var slug = Compressor.Compress(baseCode, version1, version2);
+        navigationManager.NavigateTo(navigationManager.BaseUri + "#" + slug, forceLoad: false);
+
         if (!_autoRefresh)
         {
             return;
@@ -135,11 +142,12 @@
 
         _typingCancellationSource.Cancel();
         _typingCancellationSource = new CancellationTokenSource();
-        _ = Update(_typingCancellationSource.Token);
+        await Update(_typingCancellationSource.Token);
     }
 
     private async Task Update(CancellationToken cancellationToken)
     {
+
         await Task.Delay(500, cancellationToken);
 
         if (cancellationToken.IsCancellationRequested)
@@ -155,11 +163,14 @@
             Modified = tempModel
         });
 
-        var runner = new Runner(await codeEditor.GetValue(), await v1.GetValue(), await v2.GetValue());
+        var baseCode = await codeEditor.GetValue();
+        var version1 = await v1.GetValue();
+        var version2 = await v2.GetValue();
+
+        var runner = new Runner(baseCode, version1, version2);
 
         await runner.Run(navigationManager.BaseUri);
 
-        navigationManager.NavigateTo(navigationManager.BaseUri + "#" + runner.Slug, forceLoad: false);
 
         var baseOutput = runner.BaseOutput;
         var version1Output = runner.Version1Output;

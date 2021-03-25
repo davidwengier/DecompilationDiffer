@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
@@ -47,7 +44,6 @@ namespace DecompilationDiffer
         public string BaseOutput { get; private set; } = "";
         public string Version1Output { get; private set; } = "";
         public string Version2Output { get; private set; } = "";
-        public string Slug { get; private set; }
 
         public Runner(string baseCode, string version1, string version2)
         {
@@ -73,50 +69,11 @@ namespace DecompilationDiffer
                 this.BaseOutput = CompileAndDecompile(_baseCode, "base");
                 this.Version1Output = CompileAndDecompile(_version1, "version 1");
                 this.Version2Output = CompileAndDecompile(_version2, "version 2");
-
-                this.Slug = ComputeSlug(_baseCode, _version1, _version2);
             }
             catch (Exception ex)
             {
                 this.BaseOutput = "Error doing something:\n\n" + ex.ToString();
             }
-        }
-
-        private string ComputeSlug(string baseCode, string version1, string version2)
-        {
-            var separator = (char)7;
-            return Compress(baseCode + separator + version1 + separator + version2);
-
-            static string Compress(string input)
-            {
-                using var ms = new MemoryStream();
-                using (var compressor = new DeflateStream(ms, CompressionLevel.Optimal))
-                {
-                    var inputBytes = Encoding.Unicode.GetBytes(input);
-                    compressor.Write(inputBytes);
-                }
-                return Convert.ToBase64String(ms.ToArray());
-            }
-        }
-
-        public static string Uncompress(string slug)
-        {
-            try
-            {
-                var bytes = Convert.FromBase64String(slug);
-
-                using var ms = new MemoryStream(bytes);
-                using (var compressor = new DeflateStream(ms, CompressionMode.Decompress))
-                using (var sr = new StreamReader(compressor, Encoding.Unicode))
-                {
-                    return sr.ReadToEnd();
-                }
-            }
-            catch (Exception ex)
-            {
-                return ex.ToString();
-            }
-            return "";
         }
 
         private string CompileAndDecompile(string code, string name)
