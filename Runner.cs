@@ -78,7 +78,7 @@ namespace DecompilationDiffer
 
         private string CompileAndDecompile(string code, string name)
         {
-            SyntaxTree? codeTree = CSharpSyntaxTree.ParseText(code, new CSharpParseOptions(kind: SourceCodeKind.Regular), "Program.cs");
+            SyntaxTree? codeTree = CSharpSyntaxTree.ParseText(code, new CSharpParseOptions(kind: SourceCodeKind.Regular).WithLanguageVersion(LanguageVersion.Preview), "Program.cs");
             var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, s_references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, concurrentBuild: false));
 
             var errors = GetErrors("Error compiling " + name + " code:\n\n", codeCompilation.GetDiagnostics());
