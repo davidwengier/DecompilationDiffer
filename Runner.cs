@@ -98,7 +98,7 @@ namespace DecompilationDiffer
             return decompiler.DecompileWholeModuleAsString();
         }
 
-        private Stream? GetAssemblyStream(Compilation generatorCompilation, out string? errors)
+        private static Stream? GetAssemblyStream(Compilation generatorCompilation, out string? errors)
         {
             try
             {
