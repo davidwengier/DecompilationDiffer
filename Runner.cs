@@ -2,15 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Reflection;
-using System.Threading.Tasks;
+using Basic.Reference.Assemblies;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-
-#nullable enable
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DecompilationDiffer
 {
@@ -35,7 +32,7 @@ namespace DecompilationDiffer
             FunctionPointers = true,
             NativeIntegers = true
         };
-        private static List<MetadataReference>? s_references;
+
         private static AssemblyResolver? s_assemblyResolver;
         private readonly string _baseCode;
         private readonly string _version1;
@@ -52,14 +49,13 @@ namespace DecompilationDiffer
             _version2 = version2;
         }
 
-        internal async Task Run(string baseUri)
+        internal void Run()
         {
             try
             {
-                if (s_references == null)
+                if (s_assemblyResolver == null)
                 {
-                    s_assemblyResolver = new AssemblyResolver(await GetReferenceStreams(baseUri));
-                    s_references = GetReferences(s_assemblyResolver);
+                    s_assemblyResolver = new AssemblyResolver(Net60.References.All);
                 }
 
                 this.BaseOutput = "";
@@ -79,7 +75,12 @@ namespace DecompilationDiffer
         private string CompileAndDecompile(string code, string name)
         {
             SyntaxTree? codeTree = CSharpSyntaxTree.ParseText(code, new CSharpParseOptions(kind: SourceCodeKind.Regular).WithLanguageVersion(LanguageVersion.Preview), "Program.cs");
-            var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, s_references, new CSharpCompilationOptions(OutputKind.ConsoleApplication, concurrentBuild: false));
+
+            var outputKind = codeTree.GetCompilationUnitRoot().Members.Any(m => m is GlobalStatementSyntax)
+                ? OutputKind.ConsoleApplication
+                : OutputKind.DynamicallyLinkedLibrary;
+
+            var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, ReferenceAssemblies.Net60, new CSharpCompilationOptions(outputKind, concurrentBuild: false));
 
             var errors = GetErrors("Error compiling " + name + " code:\n\n", codeCompilation.GetDiagnostics());
             if (errors != null)
@@ -129,45 +130,6 @@ namespace DecompilationDiffer
             }
 
             return header + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, errors);
-        }
-
-        private static List<MetadataReference> GetReferences(AssemblyResolver assemblyResolver)
-        {
-            var references = new List<MetadataReference>();
-
-            foreach (Stream stream in assemblyResolver.GetAllStreams())
-            {
-                stream.Seek(0, SeekOrigin.Begin);
-                references.Add(MetadataReference.CreateFromStream(stream));
-            }
-
-            return references;
-        }
-
-        private static async Task<List<(string, Stream)>> GetReferenceStreams(string baseUri)
-        {
-            Assembly[]? refs = AppDomain.CurrentDomain.GetAssemblies();
-            var client = new HttpClient
-            {
-                BaseAddress = new Uri(baseUri)
-            };
-
-            var references = new List<(string, Stream)>();
-
-            // CodeBase is obsolete, and it says to use Location, but Location is blank ¯\_(ツ)_/¯
-#pragma warning disable SYSLIB0012 // Type or member is obsolete
-            foreach (Assembly? reference in refs.Where(x => !x.IsDynamic && !string.IsNullOrWhiteSpace(x.CodeBase)))
-            {
-                Stream? stream = await client.GetStreamAsync($"_framework/{Path.GetFileName(reference.CodeBase)}");
-                if (stream is null || reference.FullName is null)
-                {
-                    continue;
-                }
-                references.Add((reference.FullName, stream));
-            }
-#pragma warning restore SYSLIB0012 // Type or member is obsolete
-
-            return references;
         }
     }
 }
