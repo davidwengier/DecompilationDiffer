@@ -80,7 +80,7 @@ namespace DecompilationDiffer
                 ? OutputKind.ConsoleApplication
                 : OutputKind.DynamicallyLinkedLibrary;
 
-            var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, ReferenceAssemblies.Net60, new CSharpCompilationOptions(outputKind, concurrentBuild: false));
+            var codeCompilation = CSharpCompilation.Create("Program", new SyntaxTree[] { codeTree }, Net60.All, new CSharpCompilationOptions(outputKind, concurrentBuild: false));
 
             var errors = GetErrors("Error compiling " + name + " code:\n\n", codeCompilation.GetDiagnostics());
             if (errors != null)
@@ -93,6 +93,7 @@ namespace DecompilationDiffer
             {
                 return "Error getting assembly stream for " + name + " code: " + rawErrors;
             }
+
             using var peFile = new PEFile("", assemblyStream);
             var decompiler = new ICSharpCode.Decompiler.CSharp.CSharpDecompiler(peFile, s_assemblyResolver, _decompilerSettings);
             return decompiler.DecompileWholeModuleAsString();
