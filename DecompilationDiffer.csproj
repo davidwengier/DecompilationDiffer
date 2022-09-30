@@ -6,6 +6,11 @@
     <LangVersion>preview</LangVersion>
     <Nullable>enable</Nullable>
     <!--<BlazorWebAssemblyEnableLinking>false</BlazorWebAssemblyEnableLinking>-->
+
+    <RestoreSources>
+        $(RestoreSources);
+        https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-tools/nuget/v3/index.json;
+    </RestoreSources>
   </PropertyGroup>
   
   <ItemGroup>
@@ -25,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.2.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.5.0-1.22479.9" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
