@@ -1,5 +1,6 @@
 ﻿@page "/{*fragment}"
 @inject NavigationManager navigationManager
+@inject IJSRuntime jsRuntime
 @using System.Threading
 
 <div class="banner">
@@ -12,11 +13,11 @@
 
 <div class="parent">
     <div class="code-header"><span class="header">Base</span></div>
-    <div class="code"><MonacoEditor @ref="codeEditor" Id="code-editor" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="code"><StandaloneCodeEditor @ref="codeEditor" Id="code-editor" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
     <div class="v1-header"><span class="header">Version 1</span></div>
-    <div class="v1"><MonacoEditor @ref="v1" Id="v1" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="v1"><StandaloneCodeEditor @ref="v1" Id="v1" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
     <div class="v2-header"><span class="header">Version 2</span></div>
-    <div class="v2"><MonacoEditor @ref="v2" Id="v2" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
+    <div class="v2"><StandaloneCodeEditor @ref="v2" Id="v2" ConstructionOptions="EditorConstructionOptions" OnKeyUp="OnKeyUp" /></div>
     <div class="diff-header">
         <span class="header">Decompilation Diff from Base</span>
         <div class="refresh">
@@ -28,16 +29,16 @@
             </div>
         </div>
     </div>
-    <div class="v1Diff"><MonacoDiffEditor @ref="v1Diff" Id="v1diff" ConstructionOptions="DiffEditorConstructionOptions" OnDidScrollChangeModified="ScrollV1" /></div>
-    <div class="v2Diff"><MonacoDiffEditor @ref="v2Diff" Id="v2diff" ConstructionOptions="DiffEditorConstructionOptions" OnDidScrollChangeModified="ScrollV2" /></div>
+    <div class="v1Diff"><StandaloneDiffEditor  @ref="v1Diff" Id="v1diff" ConstructionOptions="DiffEditorConstructionOptions" OnDidScrollChangeModified="ScrollV1" /></div>
+    <div class="v2Diff"><StandaloneDiffEditor @ref="v2Diff" Id="v2diff" ConstructionOptions="DiffEditorConstructionOptions" OnDidScrollChangeModified="ScrollV2" /></div>
 </div>
 
 @code {
-    private MonacoEditor codeEditor = null!;
-    private MonacoEditor v1 = null!;
-    private MonacoEditor v2 = null!;
-    private MonacoDiffEditor v1Diff = null!;
-    private MonacoDiffEditor v2Diff = null!;
+    private StandaloneCodeEditor codeEditor = null!;
+    private StandaloneCodeEditor v1 = null!;
+    private StandaloneCodeEditor v2 = null!;
+    private StandaloneDiffEditor v1Diff = null!;
+    private StandaloneDiffEditor v2Diff = null!;
     private bool _autoRefresh = true;
     private bool _syncScroll = true;
     private string _initialBaseCode = "record R(int X);";
@@ -47,9 +48,9 @@
     [ParameterAttribute]
     public string? fragment { get; set; }
 
-    private DiffEditorConstructionOptions DiffEditorConstructionOptions(MonacoDiffEditor editor)
+    private StandaloneDiffEditorConstructionOptions DiffEditorConstructionOptions(StandaloneDiffEditor editor)
     {
-        var options = new DiffEditorConstructionOptions
+        var options = new StandaloneDiffEditorConstructionOptions
             {
                 AutomaticLayout = true,
                 Minimap = new EditorMinimapOptions() { Enabled = false },
@@ -65,7 +66,7 @@
         return options;
     }
 
-    private StandaloneEditorConstructionOptions EditorConstructionOptions(MonacoEditor editor)
+    private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
     {
         var options = new StandaloneEditorConstructionOptions
             {
@@ -155,7 +156,7 @@
             return;
         }
 
-        var tempModel = await MonacoEditorBase.CreateModel("Compiling and Decompiling...", "txt");
+        var tempModel = await Global.CreateModel(jsRuntime, "Compiling and Decompiling...", "txt");
 
         await v1Diff.SetModel(new DiffEditorModel
             {
@@ -178,16 +179,16 @@
 
         if (baseOutput.StartsWith("Error"))
         {
-            var originalModel = await MonacoEditorBase.CreateModel(baseOutput, "txt");
-            var modifiedModel = await MonacoEditorBase.CreateModel(baseOutput, "txt");
+            var originalModel = await Global.CreateModel(jsRuntime, baseOutput, "txt");
+            var modifiedModel = await Global.CreateModel(jsRuntime, baseOutput, "txt");
 
             await v1Diff.SetModel(new DiffEditorModel
                 {
                     Original = originalModel,
                     Modified = modifiedModel
                 });
-            originalModel = await MonacoEditorBase.CreateModel("", "txt");
-            modifiedModel = await MonacoEditorBase.CreateModel("", "txt");
+            originalModel = await Global.CreateModel(jsRuntime, "", "txt");
+            modifiedModel = await Global.CreateModel(jsRuntime, "", "txt");
 
             await v2Diff.SetModel(new DiffEditorModel
                 {
@@ -198,8 +199,8 @@
         else
         {
             var lang = version1Output.StartsWith("Error") ? "txt" : "csharp";
-            var originalModel = await MonacoEditorBase.CreateModel(version1Output.StartsWith("Error") ? version1Output : baseOutput, lang);
-            var modifiedModel = await MonacoEditorBase.CreateModel(version1Output, lang);
+            var originalModel = await Global.CreateModel(jsRuntime, version1Output.StartsWith("Error") ? version1Output : baseOutput, lang);
+            var modifiedModel = await Global.CreateModel(jsRuntime, version1Output, lang);
 
             await v1Diff.SetModel(new DiffEditorModel
                 {
@@ -208,8 +209,8 @@
                 });
 
             lang = version2Output.StartsWith("Error") ? "txt" : "csharp";
-            originalModel = await MonacoEditorBase.CreateModel(version2Output.StartsWith("Error") ? version2Output : baseOutput, lang);
-            modifiedModel = await MonacoEditorBase.CreateModel(version2Output, lang);
+            originalModel = await Global.CreateModel(jsRuntime, version2Output.StartsWith("Error") ? version2Output : baseOutput, lang);
+            modifiedModel = await Global.CreateModel(jsRuntime, version2Output, lang);
 
             await v2Diff.SetModel(new DiffEditorModel
                 {
