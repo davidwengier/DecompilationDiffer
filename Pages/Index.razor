@@ -41,9 +41,9 @@
     private StandaloneDiffEditor v2Diff = null!;
     private bool _autoRefresh = true;
     private bool _syncScroll = true;
-    private string _initialBaseCode = "record R(int X);";
-    private string _initialVersion1Code = "record R(int X)\n{\n    public int X { get; init; }\n}";
-    private string _initialVersion2Code = "record R(int X)\n{\n    public int X { get; set; } = X;\n}";
+    private string _initialBaseCode = Constants.InitialCode;
+    private string _initialVersion1Code = Constants.Version1Code;
+    private string _initialVersion2Code = Constants.Version2Code;
 
     [ParameterAttribute]
     public string? fragment { get; set; }
